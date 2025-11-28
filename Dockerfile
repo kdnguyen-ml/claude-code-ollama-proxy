@@ -1,16 +1,18 @@
-FROM python:latest
+FROM python:3.12-slim
 
 WORKDIR /claude-code-proxy
 
 # Copy package specifications
-COPY pyproject.toml uv.lock ./
+COPY ./pyproject.toml ./pyproject.toml
+COPY ./uv.lock ./uv.lock
 
 # Install uv and project dependencies
 RUN pip install --upgrade uv && uv sync --locked
 
 # Copy project code to current directory
-COPY . .
+COPY ./server.py ./server.py
 
 # Start the proxy
-EXPOSE 8082
-CMD uv run uvicorn server:app --host 0.0.0.0 --port 8082 --reload
+ARG CLAUDE_CODE_PROXY_PORT
+EXPOSE $CLAUDE_CODE_PROXY_PORT
+CMD uv run uvicorn server:app --host 0.0.0.0 --port $CLAUDE_CODE_PROXY_PORT --reload

@@ -1,0 +1,30 @@
+include:
+  - ../../.ollama/docker-compose.yml
+
+services:
+  claude-code-proxy:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+      args:
+        CLAUDE_CODE_PROXY_PORT: ${CLAUDE_CODE_PROXY_PORT}
+    image: claude-code-proxy:latest
+    restart: always
+    environment:
+      PREFERRED_PROVIDE: ${PREFERRED_PROVIDER}
+      OLLAMA_API_BASE: ${OLLAMA_API_BASE}
+      BIG_MODEL: ${BIG_MODEL}
+      SMALL_MODEL: ${SMALL_MODEL}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    expose:
+      - ${CLAUDE_CODE_PROXY_PORT}
+    ports:
+      - ${CLAUDE_CODE_PROXY_PORT}:${CLAUDE_CODE_PROXY_PORT}
+    networks: [dev-assistant]
+    depends_on:
+      - ollama
+      
+networks:
+  dev-assistant:

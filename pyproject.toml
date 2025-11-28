@@ -2,7 +2,6 @@
 name = "anthropic-proxy"
 version = "0.1.0"
 description = "Proxy that translates between Anthropic API and LiteLLM"
-readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi[standard]>=0.115.11",
