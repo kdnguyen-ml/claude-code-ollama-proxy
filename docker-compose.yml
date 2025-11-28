@@ -21,7 +21,7 @@ services:
     expose:
       - ${CLAUDE_CODE_PROXY_PORT}
     ports:
-      - ${CLAUDE_CODE_PROXY_PORT}:${CLAUDE_CODE_PROXY_PORT}
+      - 8082:${CLAUDE_CODE_PROXY_PORT}
     networks: [dev-assistant]
     depends_on:
       - ollama

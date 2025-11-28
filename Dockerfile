@@ -14,5 +14,6 @@ COPY ./server.py ./server.py
 
 # Start the proxy
 ARG CLAUDE_CODE_PROXY_PORT
-EXPOSE $CLAUDE_CODE_PROXY_PORT
-CMD uv run uvicorn server:app --host 0.0.0.0 --port $CLAUDE_CODE_PROXY_PORT --reload
+ENV CLAUDE_CODE_PROXY_PORT=${CLAUDE_CODE_PROXY_PORT}
+EXPOSE ${CLAUDE_CODE_PROXY_PORT}
+CMD uv run uvicorn server:app --host 0.0.0.0 --port ${CLAUDE_CODE_PROXY_PORT} --reload
