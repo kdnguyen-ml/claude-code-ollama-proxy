@@ -1,5 +1,5 @@
-include:
-  - ../../.ollama/docker-compose.yml
+# include:
+#   - ../../.ollama/docker-compose.yml
 
 services:
   claude-code-proxy:
@@ -11,7 +11,8 @@ services:
     image: claude-code-proxy:latest
     restart: always
     environment:
-      PREFERRED_PROVIDE: ${PREFERRED_PROVIDER}
+      PREFERRED_PROVIDER: ${PREFERRED_PROVIDER}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL}
       OLLAMA_API_BASE: ${OLLAMA_API_BASE}
       BIG_MODEL: ${BIG_MODEL}
       SMALL_MODEL: ${SMALL_MODEL}
@@ -19,12 +20,14 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
     expose:
-      - ${CLAUDE_CODE_PROXY_PORT}
+      - 8082
     ports:
       - 8082:${CLAUDE_CODE_PROXY_PORT}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks: [dev-assistant]
-    depends_on:
-      - ollama
+    # depends_on:
+    #   - ollama
       
 networks:
   dev-assistant:

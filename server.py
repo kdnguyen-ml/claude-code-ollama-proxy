@@ -90,15 +90,15 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-# # Get Vertex AI project and location from environment (if set)
-# VERTEX_PROJECT = os.environ.get("VERTEX_PROJECT", "unset")
-# VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "unset")
+# Get Vertex AI project and location from environment (if set)
+VERTEX_PROJECT = os.environ.get("VERTEX_PROJECT", "unset")
+VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "unset")
 
-# # Option to use Gemini API key instead of ADC for Vertex AI
-# USE_VERTEX_AUTH = os.environ.get("USE_VERTEX_AUTH", "False").lower() == "true"
+# Option to use Gemini API key instead of ADC for Vertex AI
+USE_VERTEX_AUTH = os.environ.get("USE_VERTEX_AUTH", "False").lower() == "true"
 
-# # Get OpenAI base URL from environment (if set)
-# OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL")
+# Get OpenAI base URL from environment (if set)
+OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL")
 
 # Get preferred provider (default to openai)
 PREFERRED_PROVIDER = os.environ.get("PREFERRED_PROVIDER", "openai").lower()
@@ -697,7 +697,7 @@ def convert_anthropic_to_litellm(anthropic_request: MessagesRequest) -> Dict[str
     litellm_request = {
         "model": anthropic_request.model,  # it understands "anthropic/claude-x" format
         "messages": messages,
-        "max_tokens": max_tokens,
+        "max_completion_tokens": max_tokens,
         "temperature": anthropic_request.temperature,
         "stream": anthropic_request.stream,
     }
@@ -1340,28 +1340,25 @@ async def create_message(request: MessagesRequest, raw_request: Request):
         # Determine which API key to use based on the model
         if request.model.startswith("openai/"):
             litellm_request["api_key"] = OPENAI_API_KEY
-            # # Use custom OpenAI base URL if configured
-            # if OPENAI_BASE_URL:
-            #     litellm_request["api_base"] = OPENAI_BASE_URL
-            #     logger.debug(
-            #         f"Using OpenAI API key and custom base URL {OPENAI_BASE_URL} for model: {request.model}"
-            #     )
-            # else:
-            #     logger.debug(f"Using OpenAI API key for model: {request.model}")
-            logger.debug(f"Using OpenAI API key for model: {request.model}")
+            # Use custom OpenAI base URL if configured
+            if OPENAI_BASE_URL:
+                litellm_request["api_base"] = OPENAI_BASE_URL
+                logger.debug(
+                    f"Using OpenAI API key and custom base URL {OPENAI_BASE_URL} for model: {request.model}"
+                )
+            else:
+                logger.debug(f"Using OpenAI API key for model: {request.model}")
         elif request.model.startswith("gemini/"):
-            # if USE_VERTEX_AUTH:
-            #     litellm_request["vertex_project"] = VERTEX_PROJECT
-            #     litellm_request["vertex_location"] = VERTEX_LOCATION
-            #     litellm_request["custom_llm_provider"] = "vertex_ai"
-            #     logger.debug(
-            #         f"Using Gemini ADC with project={VERTEX_PROJECT}, location={VERTEX_LOCATION} and model: {request.model}"
-            #     )
-            # else:
-            #     litellm_request["api_key"] = GEMINI_API_KEY
-            #     logger.debug(f"Using Gemini API key for model: {request.model}")
-            litellm_request["api_key"] = GEMINI_API_KEY
-            logger.debug(f"Using Gemini API key for model: {request.model}")
+            if USE_VERTEX_AUTH:
+                litellm_request["vertex_project"] = VERTEX_PROJECT
+                litellm_request["vertex_location"] = VERTEX_LOCATION
+                litellm_request["custom_llm_provider"] = "vertex_ai"
+                logger.debug(
+                    f"Using Gemini ADC with project={VERTEX_PROJECT}, location={VERTEX_LOCATION} and model: {request.model}"
+                )
+            else:
+                litellm_request["api_key"] = GEMINI_API_KEY
+                logger.debug(f"Using Gemini API key for model: {request.model}")
         elif request.model.startswith("ollama/"):
             # Ollama doesn't require an API key, but we need to set the API base
             litellm_request["api_base"] = OLLAMA_API_BASE
@@ -1642,8 +1639,31 @@ async def create_message(request: MessagesRequest, raw_request: Request):
                 if key not in error_details and key not in ["args", "__traceback__"]:
                     error_details[key] = str(value)
 
-        # Log all error details
-        logger.error(f"Error processing request: {error_details}")
+        # Helper function to safely serialize objects for JSON
+        def sanitize_for_json(obj):
+            """递归地清理对象使其可以JSON序列化"""
+            if isinstance(obj, dict):
+                return {k: sanitize_for_json(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [sanitize_for_json(item) for item in obj]
+            elif hasattr(obj, "__dict__"):
+                return sanitize_for_json(obj.__dict__)
+            elif hasattr(obj, "text"):
+                return str(obj.text)
+            else:
+                try:
+                    json.dumps(obj)
+                    return obj
+                except (TypeError, ValueError):
+                    return str(obj)
+
+        # Log all error details with safe serialization
+        sanitized_details = sanitize_for_json(error_details)
+        logger.error(
+            f"Error processing request: {json.dumps(sanitized_details, indent=2)}"
+        )
+        # # Log all error details
+        # logger.error(f"Error processing request: {error_details}")
 
         # Format error for response
         error_message = f"Error: {str(e)}"
@@ -1706,11 +1726,18 @@ async def count_tokens(request: TokenCountRequest, raw_request: Request):
                 200,  # Assuming success at this point
             )
 
+            # Prepare token counter arguments
+            token_counter_args = {
+                "model": converted_request["model"],
+                "messages": converted_request["messages"],
+            }
+
+            # Add custom base URL for OpenAI models if configured
+            if request.model.startswith("openai/") and OPENAI_BASE_URL:
+                token_counter_args["api_base"] = OPENAI_BASE_URL
+
             # Count tokens
-            token_count = token_counter(
-                model=converted_request["model"],
-                messages=converted_request["messages"],
-            )
+            token_count = token_counter(**token_counter_args)
 
             # Return Anthropic-style response
             return TokenCountResponse(input_tokens=token_count)
